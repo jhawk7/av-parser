@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/lrstanley/go-ytdlp"
@@ -38,17 +39,39 @@ func main() {
 		}
 	}
 
-	downloadContent(ytUrl)
+	// prepare context to cancel on os interrupt - 'Ctrl+C'
+	fmt.Println("press 'Ctrl+C' to terminate.")
+	ctx, cancel := context.WithCancel(context.Background())
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt)
+
+	defer func() {
+		signal.Stop(signalCh)
+		cancel()
+		cleanup()
+	}()
+
+	go func() {
+		select {
+		case <-signalCh:
+			cancel()
+			cleanup()
+			panic("program terminated by user")
+		case <-ctx.Done():
+		}
+	}()
+
+	downloadContent(ytUrl, ctx)
 	parseAV(audioFlag)
 	transferFiles(audioFlag, videoFlag)
 	fmt.Println("fin.")
 }
 
-func downloadContent(ytUrl string) {
+func downloadContent(ytUrl string, ctx context.Context) {
 	fmt.Printf("retrieving video file from url %s\n", ytUrl)
 
 	// If yt-dlp isn't installed yet, download and cache it for further use.
-	ytdlp.MustInstall(context.TODO(), nil)
+	ytdlp.MustInstall(ctx, nil)
 
 	if osErr := os.MkdirAll(TMP_VID_FOLDER, os.ModePerm); osErr != nil {
 		err := fmt.Errorf("failed to make tmp video dir; [err: %v]", osErr)
@@ -62,7 +85,7 @@ func downloadContent(ytUrl string) {
 		Output(TMP_VID_FOLDER + "%(extractor)s - %(title)s.%(ext)s")
 
 	args := []string{ytUrl, "--no-playlist", "--progress"}
-	_, dlErr := dl.Run(context.TODO(), args...)
+	_, dlErr := dl.Run(ctx, args...)
 	if dlErr != nil {
 		err := fmt.Errorf("failed to download content; [err: %v]", dlErr)
 		errorHandler(err, true)
@@ -158,10 +181,12 @@ func transferFiles(audioFlag, videoFlag bool) {
 	}
 
 	fmt.Println("transfer complete")
+}
 
-	//removing tmp folders
-	os.RemoveAll(TMP_VID_FOLDER)
+func cleanup() {
+	fmt.Println("cleaning up..")
 	os.RemoveAll(TMP_AUDIO_FOLDER)
+	os.RemoveAll(TMP_VID_FOLDER)
 }
 
 func errorHandler(err error, fatal bool) {
