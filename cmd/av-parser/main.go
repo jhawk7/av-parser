@@ -18,19 +18,30 @@ const (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Missing url; Usage: 'go run main.go <url> <optional '-s' flag to save video>'")
+		fmt.Println("Missing url; Usage: 'go run main.go <url> <optional '-a|-v' flag to save audio or video only (both by default)>'")
 		return
 	}
 
 	ytUrl := os.Args[1]
-	saveFlag := false
-	if len(os.Args) == 3 && strings.ToLower(os.Args[2]) == "-s" {
-		saveFlag = true
+	audioFlag, videoFlag := true, true
+	if len(os.Args) == 3 {
+		switch os.Args[2] {
+		case "-a":
+			fmt.Println("saving audio only..")
+			videoFlag = false
+		case "-v":
+			fmt.Println("saving video only..")
+			audioFlag = false
+		default:
+			err := fmt.Errorf("invalid flag '%s'; use '-a' for audio only or '-v' for video only", os.Args[2])
+			errorHandler(err, true)
+		}
 	}
 
 	downloadContent(ytUrl)
-	parseAV()
-	transferFiles(saveFlag)
+	parseAV(audioFlag)
+	transferFiles(audioFlag, videoFlag)
+	fmt.Println("fin.")
 }
 
 func downloadContent(ytUrl string) {
@@ -50,7 +61,8 @@ func downloadContent(ytUrl string) {
 		RecodeVideo("mp4").
 		Output(TMP_VID_FOLDER + "%(extractor)s - %(title)s.%(ext)s")
 
-	_, dlErr := dl.Run(context.TODO(), ytUrl)
+	args := []string{ytUrl, "--no-playlist", "--progress"}
+	_, dlErr := dl.Run(context.TODO(), args...)
 	if dlErr != nil {
 		err := fmt.Errorf("failed to download content; [err: %v]", dlErr)
 		errorHandler(err, true)
@@ -59,7 +71,12 @@ func downloadContent(ytUrl string) {
 	fmt.Println("vid download complete.")
 }
 
-func parseAV() {
+func parseAV(audioFlag bool) {
+	if !audioFlag {
+		fmt.Println("audio parsing skipped.")
+		return
+	}
+
 	fmt.Println("parsing audio from video..")
 
 	if osErr := os.MkdirAll(TMP_AUDIO_FOLDER, os.ModePerm); osErr != nil {
@@ -85,7 +102,7 @@ func parseAV() {
 	audioFilename := strings.Split(filename, ".")[0] + ".mp3"
 
 	streamErr := ffmpeg.Input(fmt.Sprintf("%s%s", TMP_VID_FOLDER, filename)).
-		Output(fmt.Sprintf("%s%s", TMP_AUDIO_FOLDER, audioFilename), ffmpeg.KwArgs{"q:a": 0, "map": "a"}).
+		Output(fmt.Sprintf("%s%s", TMP_AUDIO_FOLDER, audioFilename), ffmpeg.KwArgs{"q:a": 0, "map": "a", "loglevel": "error"}).
 		OverWriteOutput().ErrorToStdOut().Run()
 
 	if streamErr != nil {
@@ -97,7 +114,7 @@ func parseAV() {
 	fmt.Println("av parsing complete.")
 }
 
-func transferFiles(flag bool) {
+func transferFiles(audioFlag, videoFlag bool) {
 	vidArchive, isSet := os.LookupEnv("AV_VIDEO_STORAGE_DIR")
 	if !isSet {
 		err := fmt.Errorf("video storage dir not set")
@@ -130,12 +147,16 @@ func transferFiles(flag bool) {
 		}
 	}
 
-	fmt.Println("transferring audio files..")
-	copyFiles(TMP_AUDIO_FOLDER, audoArchive)
-	if flag {
+	if audioFlag {
+		fmt.Println("transferring audio files..")
+		copyFiles(TMP_AUDIO_FOLDER, audoArchive)
+	}
+
+	if videoFlag {
 		fmt.Println("transferring video files..")
 		copyFiles(TMP_VID_FOLDER, vidArchive)
 	}
+
 	fmt.Println("transfer complete")
 
 	//removing tmp folders
