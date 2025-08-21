@@ -18,7 +18,7 @@ const (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Missing url; Usage: 'go run main.go <url> <optional '-a|-v' flag to save audio or video only (both by default)>'")
+		fmt.Println("Missing url; Usage: 'go run main.go <url> [optional '-a|-v' flag to save audio or video only (both by default)]'")
 		return
 	}
 
