@@ -46,7 +46,7 @@ func downloadContent(ytUrl string) {
 	}
 
 	dl := ytdlp.New().
-		FormatSort("res,ext:mp4:m4a").
+		FormatSort("vcodec:h264,res,ext:mp4:m4a").
 		RecodeVideo("mp4").
 		Output(TMP_VID_FOLDER + "%(extractor)s - %(title)s.%(ext)s")
 
