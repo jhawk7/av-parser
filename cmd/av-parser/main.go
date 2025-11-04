@@ -80,15 +80,15 @@ func downloadContent(ytUrl string, videoFlag bool, ctx context.Context) {
 	}
 
 	// yt-dlp will get best available format by default, but we want mp4 if we're saving it
-	formatStr := ""
+	var dl *ytdlp.Command
 	if videoFlag {
-		formatStr = "vcodec:h264,res,ext:mp4:m4a"
+		dl = ytdlp.New().
+			FormatSort("vcodec:h264,res,ext:mp4:m4a").
+			RecodeVideo("mp4").
+			Output(TMP_VID_FOLDER + "%(extractor)s - %(title)s.%(ext)s")
+	} else {
+		dl = ytdlp.New().Output(TMP_VID_FOLDER + "%(extractor)s - %(title)s.%(ext)s")
 	}
-
-	dl := ytdlp.New().
-		FormatSort(formatStr).
-		RecodeVideo("mp4").
-		Output(TMP_VID_FOLDER + "%(extractor)s - %(title)s.%(ext)s")
 
 	args := []string{ytUrl, "--no-playlist", "--progress"}
 	_, dlErr := dl.Run(ctx, args...)
