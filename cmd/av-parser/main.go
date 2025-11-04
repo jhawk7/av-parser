@@ -61,13 +61,13 @@ func main() {
 		}
 	}()
 
-	downloadContent(ytUrl, ctx)
+	downloadContent(ytUrl, videoFlag, ctx)
 	parseAV(audioFlag)
 	transferFiles(audioFlag, videoFlag)
 	fmt.Println("fin.")
 }
 
-func downloadContent(ytUrl string, ctx context.Context) {
+func downloadContent(ytUrl string, videoFlag bool, ctx context.Context) {
 	fmt.Printf("retrieving video file from url %s\n", ytUrl)
 
 	// If yt-dlp isn't installed yet, download and cache it for further use.
@@ -79,8 +79,14 @@ func downloadContent(ytUrl string, ctx context.Context) {
 		return
 	}
 
+	// yt-dlp will get best available format by default, but we want mp4 if we're saving it
+	formatStr := ""
+	if videoFlag {
+		formatStr = "vcodec:h264,res,ext:mp4:m4a"
+	}
+
 	dl := ytdlp.New().
-		FormatSort("vcodec:h264,res,ext:mp4:m4a").
+		FormatSort(formatStr).
 		RecodeVideo("mp4").
 		Output(TMP_VID_FOLDER + "%(extractor)s - %(title)s.%(ext)s")
 
